@@ -17,7 +17,7 @@ class Entity
     end
     outputs.sprites << rect.merge({ path: sprite_name(tick) })
     # Remove exipred labels and render the rest
-    damage_labels.reject! { |l| l.expired? }
+    damage_labels.reject!(&:expired?)
     damage_labels.each { |l| l.render(outputs) }
   end
 
@@ -29,9 +29,9 @@ class Entity
     { x: x+size/4, y: y+size/4, h: size/2, w: size/2 }
   end
 
-  def damage(damage, x, y)
-    @health = (health - damage) < 0 ? 0 : health - damage
+  def damage!(damage, x, y)
     damage_labels << DamageLabel.new(damage, x, y) if @health > 0
+    @health = (health - damage) < 0 ? 0 : health - damage
   end
 
   def max_health

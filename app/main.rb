@@ -24,7 +24,7 @@ class SkeletonGame
     state.walls ||= walls_from_map
     state.tomb ||= tomb_from_map
 
-    outputs.sounds  << "music/danse-macabre-op-40.wav" if state.tick_count == 0
+    #outputs.sounds  << "music/danse-macabre-op-40.wav" if state.tick_count == 0
   end
 
   def render_background
@@ -33,9 +33,7 @@ class SkeletonGame
   end
 
   def render
-    state.walls.each do |wall|
-      outputs.sprites << wall.rect.merge({ path: 'sprites/wall.png' })
-    end
+    outputs.sprites << state.walls.map { |w| w.rect.merge({ path: 'sprites/wall.png' }) } 
     state.tomb.object.render(outputs, state.tick_count)
     state.enemies.each { |enemy| enemy.object.render(outputs, state.tick_count) }
   end
@@ -49,6 +47,7 @@ class SkeletonGame
         end
       end
     end
+    puts "Walls loaded: #{walls.count}"
     walls 
   end
 
@@ -79,27 +78,12 @@ class SkeletonGame
     30
   end
 
-  def move_enemies
+  def enemies_action
+    # Clean up expired enemies
+    state.enemies.reject!{ |enemy| enemy.object.expired? }
+    # Action each enemy
     state.enemies.each do |enemy|
-      x_direction = enemy.object.rect[:x] > state.tomb.object.x ? -1 : 1 
-      y_direction = enemy.object.rect[:y] > state.tomb.object.y ? -1 : 1
-
-      # Try x-move and only move if its doesn't intersect with a wall
-      new_rect = enemy.object.rect
-      new_rect[:x] = new_rect[:x] + (enemy.object.speed * x_direction)
-      enemy.object.move(new_rect[:x], new_rect[:y]) unless state.walls.any? { |wall| new_rect.intersect_rect?(wall.rect) } || state.tomb.object.collision_rect.intersect_rect?(new_rect)
-      
-      # Try y-move and only move if its doesn't intersect with a wall
-      new_rect = enemy.object.rect.clone
-      new_rect[:y] = new_rect[:y] + (enemy.object.speed * y_direction)
-      enemy.object.move(new_rect[:x], new_rect[:y]) unless state.walls.any? { |wall| new_rect.intersect_rect?(wall.rect) } || state.tomb.object.collision_rect.intersect_rect?(new_rect)
-      
-      if new_rect.intersect_rect?(state.tomb.object.rect)
-        if (enemy.object.last_damage_tick + enemy.object.attack_rate) < state.tick_count
-          state.tomb.object.damage(enemy.object.attack_damage, new_rect[:x], new_rect[:y] + MAP_TITLE_SIZE)
-          enemy.object.last_damage_tick = state.tick_count
-        end
-      end
+      enemy.object.perform_action!(state.tomb.object, [state.walls.map(&:rect), state.tomb.object.collision_rect].flatten, state.tick_count)
     end
   end
 
@@ -110,10 +94,9 @@ class SkeletonGame
 
       state.enemies.each do |enemy|
         if enemy.object.rect.intersect_rect? [click_x, click_y, 1, 1]
-          enemy.object.damage(5, click_x, click_y)
+          enemy.object.damage!(5, click_x, click_y)
         end
       end
-      state.enemies.reject! { |enemy| enemy.object.health <= 0 }
     end
   end
 
@@ -124,7 +107,7 @@ class SkeletonGame
   end
 end
 
-
+@first_render = false
 def tick args
   game = SkeletonGame.new(args)
   game.init_state
@@ -135,7 +118,7 @@ def tick args
   game.check_input 
 
   game.spawn_enemies
-  game.move_enemies
+  game.enemies_action
   
   game.check_death
 
